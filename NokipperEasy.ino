@@ -1,6 +1,7 @@
 #include "LineStepper.h"
 #include "GY25.h"
 #include <PID_v1.h>
+#include "BucketStepCounter.h"
 
 const int MOTOR_DIR = 14;
 const int MOTOR_STEP = 27;
@@ -16,8 +17,10 @@ const uint16_t MOTOR_RESOLUTION = 800; // steps per rotation; this assumes a sub
 bool dirIsHigh = false;
 uint32_t systemStartTime = 0;
 uint32_t lastOutputTime = 0;
-int32_t stepCount = 0;
 double steppedFrequency = 0;
+
+BucketStepCounter stepCounter(20, 50);
+int32_t stepCount = 0;
 
 LineStepper stepper;
 LineStepper stepper2;
@@ -84,12 +87,14 @@ void loop()
   bool hasNewOri = gy25.drive();
 
   if (hasNewOri) {
-    float ori = gy25.getRoll() +8;
+    float ori = gy25.getRoll() + 4;
 
     if (ori > 45 && ori < 135) {
-      stepCount += stepper.getCurrentSteps(true) * sign(steppedFrequency);
-      double off = stepCount / (double)MOTOR_RESOLUTION;
-      off = clip(off, 2);
+      int32_t stepsNow = stepper.getCurrentSteps(true) * sign(steppedFrequency);
+      int32_t bucketedSteps = stepCounter.addSteps(stepsNow);
+      stepCount += stepsNow;
+      double off = bucketedSteps / (double)MOTOR_RESOLUTION;
+      off = clip(off, 1);
       pidInput = ori - off;
     
       bool hasNewPid = myPID.Compute();
@@ -97,7 +102,7 @@ void loop()
       uint32_t now = millis();
       if (now - lastOutputTime > 300) {
       //if (abs(pidOutput) > 0 && abs(pidOutput) < 0.0001) {
-        Serial.println("ori "+String(ori)+" off "+String(off)+" (steps "+String(stepCount)+") > input "+String(pidInput)+" > output "+String(pidOutput));
+        Serial.println("ori "+String(ori)+" off "+String(off)+" (steps "+String(stepCount)+" 1s "+String(bucketedSteps)+") > input "+String(pidInput)+" > output "+String(pidOutput));
         lastOutputTime = now;
       }
 
