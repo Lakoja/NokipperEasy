@@ -28,7 +28,7 @@ LineStepper stepper2;
 GY25 gy25;
 
 double pidSetpoint = 90, pidInput = 90, pidOutput;
-double Kp=0.35, Ki=0.0, Kd=0.001;
+double Kp=0.35, Ki=0.0, Kd=0.000;
 PID myPID(&pidInput, &pidOutput, &pidSetpoint, Kp, Ki, Kd, DIRECT);
 
 
@@ -87,7 +87,7 @@ void loop()
   bool hasNewOri = gy25.drive();
 
   if (hasNewOri) {
-    float ori = gy25.getRoll() + 4;
+    float ori = gy25.getRoll() + 4.5f;
 
     if (ori > 45 && ori < 135) {
       int32_t stepsNow = stepper.getCurrentSteps(true) * sign(steppedFrequency);
@@ -95,7 +95,7 @@ void loop()
       stepCount += stepsNow;
       double off = bucketedSteps / (double)MOTOR_RESOLUTION;
       off = clip(off, 1);
-      pidInput = ori - off;
+      pidInput = ori;// - off;
     
       bool hasNewPid = myPID.Compute();
 
@@ -113,7 +113,7 @@ void loop()
           digitalWrite(MOTOR_DIR, frequency >= 0 ? LOW : HIGH);
           digitalWrite(MOTOR2_DIR, frequency < 0 ? LOW : HIGH); // inverted
 
-          delayMicroseconds(10);
+          delayMicroseconds(1);
   
           stepper.setFrequency(frequency);
           stepper2.setFrequency(frequency);
@@ -131,5 +131,5 @@ void loop()
   stepper.drive();
   stepper2.drive();
   
-  delayMicroseconds(10);
+  delayMicroseconds(2);
 }
