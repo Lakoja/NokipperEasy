@@ -20,7 +20,7 @@
 class LineStepper
 {
 private:
-  const double MIN_FREQUENCY = 1.0;
+  const double MIN_FREQUENCY = 0.5;
   const double MAX_FREQUENCY = 20000.0;
   const uint16_t MIN_LEVEL_MICROS = 2;
   
@@ -41,9 +41,13 @@ public:
     outputPin(stepPin);
   }
 
-  void drive()
+  void drive(bool debug = false)
   {
     uint32_t nowMicros = esp_timer_get_time();
+
+    if (nowMicros - lastDriveMicros >= 500) {
+      Serial.println("LOoPing SLOW micros "+String(nowMicros-lastDriveMicros));
+    }
 
     if (nowMicros - lastDriveMicros >= 50) {
       bool frequencyChange = currentDesiredFrequency != currentLiveFrequency;
@@ -60,11 +64,24 @@ public:
 
         if (nowMicros >= nextDesiredMicros) {
           changeLevel();
-          lastLevelChangeMicros = nowMicros;
+          if (frequencyChange) {
+            lastLevelChangeMicros = nowMicros;
+          } else {
+            lastLevelChangeMicros = nextDesiredMicros;
+          }
+
+          if (lastLevelChangeMicros + currentLiveFrequencyDoubledMicros < nowMicros) {
+            if (debug) {
+              Serial.print("TOO FAST "+String(currentLiveFrequencyDoubledMicros)+" "+String(currentLiveFrequency)+" "+String(lastLevelChangeMicros - currentLiveFrequencyDoubledMicros)+" "+String(nowMicros));
+            }
+            
+            lastLevelChangeMicros = nowMicros;
+          }
         }
         
       } else if (levelIsHigh) {
         changeLevel();
+        lastLevelChangeMicros = nowMicros;
       }
       
       lastDriveMicros = nowMicros;
@@ -78,7 +95,7 @@ public:
     }
 
     if (freq > MAX_FREQUENCY) {
-      Serial.println("\n!!!!!!!!!!!! Frequency too high!!!!! "+String(freq));
+      Serial.println("\n!!!!!!! Frequency too high!!!!! "+String(freq));
     }
 
     currentDesiredFrequency = freq;

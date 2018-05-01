@@ -2,6 +2,8 @@
 #include "GY25.h"
 #include <PID_v1.h>
 #include "BucketStepCounter.h"
+#include "WifiTelnetServer.h"
+WifiTelnetServer* WifiTelnetServer::instance = NULL;
 
 const int MOTOR_DIR = 14;
 const int MOTOR_STEP = 27;
@@ -11,8 +13,11 @@ const int MOTOR2_SLEEP = 32;
 const int MOTOR2_STEP = 33;
 const int MOTOR2_DIR = 25;
 
-const uint16_t MOTOR_MAX_RPM = 70; // for steppers this can be higher (and weaker)
+const uint16_t MOTOR_MAX_RPM = 90;
 const uint16_t MOTOR_RESOLUTION = 800; // steps per rotation; this assumes a sub-step sampling (drv8834) of 4
+
+WifiTelnetServer server(80);
+#define Serial server
 
 bool dirIsHigh = false;
 uint32_t systemStartTime = 0;
@@ -28,9 +33,10 @@ LineStepper stepper2;
 GY25 gy25;
 
 double pidSetpoint = 90, pidInput = 90, pidOutput;
-double Kp=0.35, Ki=0.0, Kd=0.000;
+double Kp=0.38, Ki=0.0, Kd=0.000;
 PID myPID(&pidInput, &pidOutput, &pidSetpoint, Kp, Ki, Kd, DIRECT);
 
+bool motorsActive = false;
 
 void outputPin(int num)
 {
@@ -68,16 +74,15 @@ void setup() {
   
   gy25.init();
 
+  server.startServer();
+  server.start("Telnet");
+
   myPID.SetOutputLimits(-1, 1);
   myPID.SetSampleTime(10);
 
   systemStartTime = millis();
 
   myPID.SetMode(AUTOMATIC);
-  
-  digitalWrite(MOTOR_SLEEP, HIGH);
-  digitalWrite(MOTOR2_SLEEP, HIGH);
-  delay(1);
 
   Serial.println("Setup done");
 }
@@ -87,9 +92,17 @@ void loop()
   bool hasNewOri = gy25.drive();
 
   if (hasNewOri) {
-    float ori = gy25.getRoll() + 4.5f;
+    float ori = gy25.getRoll() + 5.5f;
 
     if (ori > 45 && ori < 135) {
+      if (!motorsActive) {
+        digitalWrite(MOTOR_SLEEP, HIGH);
+        digitalWrite(MOTOR2_SLEEP, HIGH);
+        delay(1);
+  
+        motorsActive = true;
+      }
+
       int32_t stepsNow = stepper.getCurrentSteps(true) * sign(steppedFrequency);
       int32_t bucketedSteps = stepCounter.addSteps(stepsNow);
       stepCount += stepsNow;
@@ -102,7 +115,7 @@ void loop()
       uint32_t now = millis();
       if (now - lastOutputTime > 300) {
       //if (abs(pidOutput) > 0 && abs(pidOutput) < 0.0001) {
-        Serial.println("ori "+String(ori)+" off "+String(off)+" (steps "+String(stepCount)+" 1s "+String(bucketedSteps)+") > input "+String(pidInput)+" > output "+String(pidOutput));
+        //Serial.println("ori "+String(ori)+" off "+String(off)+" (steps "+String(stepCount)+" 1s "+String(bucketedSteps)+") > input "+String(pidInput)+" > output "+String(pidOutput));
         lastOutputTime = now;
       }
 
@@ -125,11 +138,18 @@ void loop()
       stepper.setFrequency(0);
       stepper2.setFrequency(0);
       steppedFrequency = 0;
+
+      if (motorsActive) {
+        digitalWrite(MOTOR_SLEEP, LOW);
+        digitalWrite(MOTOR2_SLEEP, LOW);
+  
+        motorsActive = false;
+      }
     }
   }
 
-  stepper.drive();
+  stepper.drive(true);
   stepper2.drive();
   
-  delayMicroseconds(2);
+  delayMicroseconds(10);
 }
