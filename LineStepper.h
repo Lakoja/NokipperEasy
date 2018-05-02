@@ -46,7 +46,7 @@ public:
     uint32_t nowMicros = esp_timer_get_time();
 
     if (nowMicros - lastDriveMicros >= 500) {
-      Serial.println("LOoPing SLOW micros "+String(nowMicros-lastDriveMicros));
+      //Serial.println("LOoPing SLOW micros "+String(nowMicros-lastDriveMicros));
     }
 
     if (nowMicros - lastDriveMicros >= 50) {

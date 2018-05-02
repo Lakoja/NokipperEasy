@@ -13,7 +13,7 @@ const int MOTOR2_SLEEP = 32;
 const int MOTOR2_STEP = 33;
 const int MOTOR2_DIR = 25;
 
-const uint16_t MOTOR_MAX_RPM = 90;
+const uint16_t MOTOR_MAX_RPM = 85;
 const uint16_t MOTOR_RESOLUTION = 800; // steps per rotation; this assumes a sub-step sampling (drv8834) of 4
 
 WifiTelnetServer server(80);
@@ -33,7 +33,7 @@ LineStepper stepper2;
 GY25 gy25;
 
 double pidSetpoint = 90, pidInput = 90, pidOutput;
-double Kp=0.38, Ki=0.0, Kd=0.000;
+double Kp=0.4, Ki=0.0, Kd=0.0009;
 PID myPID(&pidInput, &pidOutput, &pidSetpoint, Kp, Ki, Kd, DIRECT);
 
 bool motorsActive = false;
@@ -106,10 +106,12 @@ void loop()
       int32_t stepsNow = stepper.getCurrentSteps(true) * sign(steppedFrequency);
       int32_t bucketedSteps = stepCounter.addSteps(stepsNow);
       stepCount += stepsNow;
-      double off = bucketedSteps / (double)MOTOR_RESOLUTION;
-      off = clip(off, 1);
-      pidInput = ori;// - off;
-    
+      //double off = bucketedSteps / (double)MOTOR_RESOLUTION;
+      double off = 2 * stepCount / (double)MOTOR_RESOLUTION;
+      //off = clip(off, 1);
+      pidInput = ori - off;
+
+      Serial.println(String(ori, 3));
       bool hasNewPid = myPID.Compute();
 
       uint32_t now = millis();
